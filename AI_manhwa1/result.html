@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 漫畫行銷 — 結果</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .result .hero { padding: 16px 12px 6px; text-align: center; }
+    .result .hero-title { font-size: clamp(20px, 4vw, 28px); margin: 0; }
+    .result .hero-kicker { margin-top: 4px; color: #64748b; font-size: 14px; }
+    
+    :root { --chrome: 150px; }
+    .collage {
+      width: min(92vw, calc(90svh - var(--chrome)));
+      aspect-ratio: 1/1;
+      margin: 0 auto;
+      display: grid; 
+      grid-template-columns: 1fr 1fr; 
+      grid-template-rows: 1fr 1fr; 
+      gap: 8px;
+    }
+    .collage .cell {
+      position: relative; 
+      overflow: hidden; 
+      border-radius: 10px; 
+      border: 1px solid #e2e8f0; 
+      background: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .collage img { 
+      width: 100%; 
+      height: 100%; 
+      object-fit: cover; 
+      display: block; 
+      opacity: 0; 
+      transition: opacity 0.5s ease-in-out; 
+    }
+    .collage img.loaded { opacity: 1; }
+    
+    .loading-text { 
+      position: absolute; 
+      font-size: 10px; 
+      color: #94a3b8; 
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+    .error-box { 
+      display: none; 
+      text-align: center; 
+      padding: 40px 20px; 
+      background: rgba(255,255,255,0.9); 
+      border-radius: 16px; 
+      margin: 20px auto;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+    }
+    .error-icon { font-size: 48px; margin-bottom: 10px; }
+    .error-title { font-size: 20px; font-weight: bold; color: #e11d48; margin-bottom: 8px; }
+    .error-desc { color: #64748b; font-size: 14px; margin-bottom: 20px; }
+
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; margin-top: 15px; }
+    @media (max-width: 420px) { :root { --chrome: 170px; } }
+  </style>
+</head>
+<body class="form-glass result">
+  <div class="wrap">
+    
+    <!-- Bagian Error -->
+    <div id="error-container" class="error-box">
+        <div class="error-icon" id="err-icon">🔍</div>
+        <div class="error-title" id="err-title">查無生成紀錄</div>
+        <div class="error-desc" id="err-desc">請檢查您的連結是否正確，或返回問卷重新提交。</div>
+        <div class="actions">
+            <a href="form.html" class="btn btn-primary">返回問卷重新提交</a>
+        </div>
+    </div>
+
+    <!-- Bagian Utama -->
+    <div id="main-content">
+        <header class="hero">
+          <h1 class="hero-title" id="main-title">正在同步結果...</h1>
+          <p class="hero-kicker" id="main-kicker">請耐心稍候，AI 正在加載您的漫畫。</p>
+        </header>
+
+        <section class="panel">
+          <div id="collage" class="collage">
+            <div class="cell"><span class="loading-text">同步中...</span><img id="img1"></div>
+            <div class="cell"><span class="loading-text">同步中...</span><img id="img2"></div>
+            <div class="cell"><span class="loading-text">同步中...</span><img id="img3"></div>
+            <div class="cell"><span class="loading-text">同步中...</span><img id="img4"></div>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn btn-primary" id="dl2x2" disabled>下載漫畫（尚未完成）</button>
+            <span class="badge" id="status-sync">等待同步...</span>
+          </div>
+        </section>
+
+        <div class="actions">
+          <a id="reuseLink" class="btn btn-primary" role="button">沿用本次設定再生成</a>
+          <a href="form.html" class="btn btn-ghost" role="button">空白從頭建立</a>
+          <a href="index.html" class="btn btn-ghost" role="button">回首頁</a>
+        </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDAunSLoJyNeBZ11grNHyw2vrix0QEDdbM",
+      authDomain: "n8n-project-743df.firebaseapp.com",
+      projectId: "n8n-project-743df",
+      storageBucket: "n8n-project-743df.firebasestorage.app",
+      messagingSenderId: "21901261434",
+      appId: "1:21901261434:web:de4909d2c5c867fc6299c3"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const jobId = urlParams.get('job');
+    const statusSync = document.getElementById('status-sync');
+    const mainContent = document.getElementById('main-content');
+    const errorContainer = document.getElementById('error-container');
+
+    let imagesLoaded = 0;
+    let isFinished = false;
+
+    // Timer Timeout (60 secs)
+    const timeoutDuration = 60000; 
+    const globalTimeout = setTimeout(() => {
+        if (!isFinished) {
+            showError("生成超時", "AI 繪圖時間過長，請嘗試簡化提示詞或重新提交。", "⏳");
+        }
+    }, timeoutDuration);
+
+    function showError(title, desc, icon = "⚠️") {
+        clearTimeout(globalTimeout); 
+        mainContent.style.display = 'none';
+        errorContainer.style.display = 'block';
+        document.getElementById('err-title').textContent = title;
+        document.getElementById('err-desc').textContent = desc;
+        document.getElementById('err-icon').textContent = icon;
+    }
+
+    function processData(data) {
+        if (data.status === "error") {
+            showError("生成失敗", data.errorMessage || "AI 引擎處理失敗。", "❌");
+            return;
+        }
+
+        if (data.brandName) {
+            document.getElementById('main-title').textContent = data.brandName;
+        } else if (data.storyTitle) {
+            document.getElementById('main-title').textContent = data.storyTitle;
+        }
+
+        if (data.images && data.images.length >= 4) {
+             isFinished = true;
+             clearTimeout(globalTimeout);
+             renderAllImages(data.images);
+        }
+    }
+
+    const undefRef = doc(db, "artifacts", "comic-gen-app", "public", "data", "comics", "undefined");
+    onSnapshot(undefRef, (snap) => {
+        if (snap.exists() && !isFinished) {
+            processData(snap.data());
+        }
+    });
+
+    if (jobId && jobId !== "undefined") {
+      const mainRef = doc(db, "artifacts", "comic-gen-app", "public", "data", "comics", jobId);
+      onSnapshot(mainRef, (snap) => {
+        if (snap.exists() && !isFinished) {
+          processData(snap.data());
+        }
+      });
+      document.getElementById('reuseLink').href = 'form.html?from=' + encodeURIComponent(jobId);
+    } else if (!jobId) {
+      showError("無效請求", "找不到 Job ID。", "🚫");
+    }
+
+    function renderAllImages(images) {
+      images.forEach((url, index) => {
+        if (index > 3) return;
+        const img = document.getElementById(`img${index + 1}`);
+        if (img && url) {
+          img.src = url;
+          img.onload = () => {
+            imagesLoaded++;
+            img.classList.add('loaded');
+            if (img.previousElementSibling) img.previousElementSibling.style.display = 'none';
+            
+            if (imagesLoaded >= 4) {
+                statusSync.textContent = "已完成同步";
+                document.getElementById('main-kicker').textContent = "漫畫已準備完成。可直接下載 PNG。";
+                document.getElementById('dl2x2').disabled = false;
+                document.getElementById('dl2x2').textContent = "下載漫畫（PNG檔）";
+            }
+          };
+        }
+      });
+    }
+
+    document.getElementById('dl2x2').onclick = () => alert("正在準備下載檔案...");
+  </script>
+</body>
+</html>

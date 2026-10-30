@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 漫畫行銷 — 漫畫設計問卷</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .req-line { margin: 10px 0; font-size: 0.85rem; color: #ef4444; }
+    .is-on { background: #3b82f6 !important; color: white !important; border-color: #2563eb !important; }
+    .chip input { display: none; }
+    .chip { 
+      display: inline-block; 
+      padding: 8px 16px; 
+      border: 1px solid #cbd5e1; 
+      border-radius: 20px; 
+      cursor: pointer; 
+      transition: all 0.2s; 
+      user-select: none;
+      margin-right: 8px;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.5);
+    }
+    .section-title { margin-top: 2rem; margin-bottom: 1rem; font-weight: bold; border-left: 4px solid #3b82f6; padding-left: 10px; color: #1e293b; }
+    textarea { width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px; background: rgba(255, 255, 255, 0.8); }
+    input[type="text"] { width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; padding: 10px; background: rgba(255, 255, 255, 0.8); }
+  </style>
+</head>
+<body class="form-glass">
+  <div class="ribbon" aria-hidden="true"></div>
+
+  <main class="wrap">
+    <h1 class="page-title">漫畫設計問卷</h1>
+    <section class="glass">
+      <p class="subtitle">請填寫必要資訊。系統將自動生成四張具敘事連貫性的圖像、加入對白，並合成 2×2 漫畫。</p>
+      <div class="req-line"><span>標示 * 之欄位為必填。</span></div>
+
+      <form id="comicForm" novalidate>
+        <div class="grid">
+          <div>
+            <label for="title">故事標題 *</label>
+            <input id="title" name="title" type="text" placeholder="例如：夏日冒險之旅" required />
+          </div>
+          <div>
+            <label for="brand">品牌名稱 *</label>
+            <input id="brand" name="brand" type="text" placeholder="您的品牌名稱" required />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <label for="product">產品描述 * (順序：品牌、數量、說明)</label>
+            <textarea id="product" name="product" rows="3" placeholder="例如：[品牌] [1份] [產品細節說明...]" required></textarea>
+          </div>
+          <div>
+            <label for="audience_note">目標受眾（選填）</label>
+            <input id="audience_note" name="audience_note" type="text" placeholder="例如：25-35歲上班族" />
+          </div>
+        </div>
+
+        <div class="section-title">偏好設定</div>
+        <div class="grid">
+          <div>
+            <label for="protagonist">主角描述</label>
+            <input id="protagonist" name="protagonist" type="text" placeholder="例如：穿藍色西裝的短髮女性" />
+          </div>
+        </div>
+
+        <div class="section-title">分鏡圖片與對白設定</div>
+        <div class="grid">
+          <div><label for="p1">第一張提示詞 *</label><input id="p1" name="p1" type="text" required /></div>
+          <div><label for="s1">第一張對白</label><input id="s1" name="s1" type="text" /></div>
+        </div>
+        <div class="grid">
+          <div><label for="p2">第二張提示詞 *</label><input id="p2" name="p2" type="text" required /></div>
+          <div><label for="s2">第二張對白</label><input id="s2" name="s2" type="text" /></div>
+        </div>
+        <div class="grid">
+          <div><label for="p3">第三張提示詞 *</label><input id="p3" name="p3" type="text" required /></div>
+          <div><label for="s3">第三張對白</label><input id="s3" name="s3" type="text" /></div>
+        </div>
+        <div class="grid">
+          <div><label for="p4">第四張提示詞 *</label><input id="p4" name="p4" type="text" required /></div>
+          <div><label for="s4">第四張對白</label><input id="s4" name="s4" type="text" /></div>
+        </div>
+
+        <div class="section-title">藝術風格</div>
+        <div>
+          <label for="style">視覺風格 *</label>
+          <input id="style" name="style" type="text" placeholder="例如：日系動漫風格" required />
+        </div>
+
+        <div class="section-title">社交媒體平台</div>
+        <div class="chips" id="platformChips">
+          <label class="chip"><input type="checkbox" name="platforms" value="facebook" /> Facebook</label>
+          <label class="chip"><input type="checkbox" name="platforms" value="instagram" /> Instagram</label>
+          <label class="chip"><input type="checkbox" name="platforms" value="x" /> Twitter/X</label>
+        </div>
+
+        <label for="headline">社群貼文標題 *</label>
+        <input id="headline" name="headline" type="text" placeholder="填寫吸引人的貼文標題" required />
+
+        <div class="actions" style="margin-top: 30px;">
+          <button class="btn btn-primary" type="submi
+          t" id="submitBtn">送出並開始生成</button>
+          <button class="btn btn-ghost" type="reset">重設</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDAunSLoJyNeBZ11grNHyw2vrix0QEDdbM",
+      authDomain: "n8n-project-743df.firebaseapp.com",
+      projectId: "n8n-project-743df",
+      storageBucket: "n8n-project-743df.firebasestorage.app",
+      messagingSenderId: "21901261434",
+      appId: "1:21901261434:web:de4909d2c5c867fc6299c3"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const group = document.getElementById('platformChips');
+    group.querySelectorAll('.chip').forEach(chip => {
+      const cb = chip.querySelector('input');
+      cb.addEventListener('change', () => chip.classList.toggle('is-on', cb.checked));
+    });
+
+    const form = document.getElementById('comicForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const getVal = id => (document.getElementById(id)?.value || '').trim();
+      const platforms = Array.from(document.querySelectorAll('input[name="platforms"]:checked')).map(x => x.value);
+      
+      const requiredFields = ['title', 'brand', 'product', 'p1', 'p2', 'p3', 'p4', 'style', 'headline'];
+      let isValid = true;
+      requiredFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (!getVal(id)) {
+          isValid = false;
+          el.style.borderColor = "#ef4444";
+        } else {
+          el.style.borderColor = "#cbd5e1";
+        }
+      });
+
+      if (!isValid || platforms.length === 0) {
+        alert('請填寫所有必填欄位並選擇平台。');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = "正在處理中...";
+
+      try {
+        const appId = "comic-gen-app";
+        const comicData = {
+          title: getVal('title'),
+          brand: getVal('brand'),
+          product: getVal('product'),
+          audience_note: getVal('audience_note'),
+          protagonist: getVal('protagonist'),
+          prompts: {
+            p1: getVal('p1'), s1: getVal('s1'),
+            p2: getVal('p2'), s2: getVal('s2'),
+            p3: getVal('p3'), s3: getVal('s3'),
+            p4: getVal('p4'), s4: getVal('s4')
+          },
+          style: getVal('style'),
+          platforms: platforms,
+          headline: getVal('headline'),
+          status: "pending",
+          createdAt: serverTimestamp()
+        };
+
+        const docRef = await addDoc(collection(db, "artifacts", appId, "public", "data", "comics"), comicData);
+        const jobId = docRef.id;
+
+        await fetch("https://kento1234.app.n8n.cloud/webhook-test/N8N", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...comicData, jobId: jobId })
+        });
+
+        window.location.href = `generating.html?jobId=${jobId}`;
+
+      } catch (error) {
+        console.error("Error:", error);
+        alert("發生錯誤，請重試。");
+        submitBtn.disabled = false;
+        submitBtn.innerText = "送出並開始生成";
+      }
+    });
+  </script>
+</body>
+</html>

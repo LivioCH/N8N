@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI漫畫行銷 — 我的漫畫</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Page-local tweaks; reuse the global design system */
+    .mini-collage{
+      display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:8px;
+    }
+    .mini-collage .cell{
+      position:relative; border-radius:10px; overflow:hidden;
+      border:1px solid var(--border-2); background:#fff; aspect-ratio:1/1;
+    }
+    .mini-collage img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .comic-card .toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; align-items:center; }
+    .empty{ text-align:center; color:var(--muted); padding:28px 10px; }
+  </style>
+</head>
+<body class="form-glass">
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="hero-title">我的漫畫</h1>
+      <p class="hero-kicker">已產生的四格漫畫清單。登入狀態會與帳號雲端同步（未接 API 前暫存於瀏覽器）。</p>
+      <div class="actions">
+        <!-- Use anchors with .btn classes for consistent styling -->
+        <a class="btn btn-ghost" href="index.html" role="button">回首頁</a>
+        <a id="makeLink" class="btn btn-primary" href="form.html" role="button">訪客直接填寫</a>
+        <a id="authLink" class="btn btn-ghost" href="auth.html" role="button">會員登入／註冊</a>
+        <a id="logoutLink" class="btn btn-ghost" href="#" role="button" hidden>登出</a>
+        <span id="whoami" class="badge" hidden></span>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div id="list" class="grid-2"></div>
+      <div id="empty" class="empty" hidden>尚無紀錄。可以先 <a href="form.html">產生第一個漫畫</a>。</div>
+    </section>
+  </div>
+
+  <!-- Load shared helpers FIRST -->
+  <script src="common.js"></script>
+  <script>
+    // ---- 0) Header state: switch CTA text by login status ----
+    document.addEventListener('DOMContentLoaded', () => {
+      // 判斷是否已登入（前端示範：session 或 token 任一存在）
+      const sessionEmail = (typeof getSession === 'function') ? getSession() : '';
+      const loggedIn = !!(sessionEmail || (typeof getToken === 'function' && getToken()));
+
+      const make   = document.getElementById('makeLink');   // 主 CTA
+      const auth   = document.getElementById('authLink');   // 登入／註冊
+      const logout = document.getElementById('logoutLink'); // 登出
+      const whoami = document.getElementById('whoami');     // 顯示當前登入帳號
+
+      if (loggedIn) {
+        // 已登入：CTA 語意改為會員創建，顯示登出與帳號
+        if (make)   { make.textContent = '以會員身份填寫'; make.href = 'form.html'; }
+        if (auth)   { auth.hidden = true; }
+        if (logout) {
+          logout.hidden = false;
+          logout.addEventListener('click', (e) => {
+            e.preventDefault();
+            // 前端示範登出：清除 session（正式串後端時請改為呼叫 /logout）
+            if (typeof clearSession === 'function') clearSession();
+            alert('您已登出');
+            location.reload();
+          });
+        }
+        if (whoami) {
+          whoami.hidden = false;
+          whoami.textContent = sessionEmail ? ('已登入：' + sessionEmail) : '已登入';
+        }
+      } else {
+        // 未登入：保留訪客流程，顯示登入／註冊連結
+        if (make)   { make.textContent = '訪客直接填寫'; make.href = 'form.html'; }
+        if (auth)   { auth.hidden = false; }
+        if (logout) { logout.hidden = true; }
+        if (whoami) { whoami.hidden = true; }
+      }
+    });
+
+    // ---- 1) Data source: prefer backend, fallback to localStorage ----
+    async function fetchComics(){
+      const token = (typeof getToken === 'function') ? getToken() : '';
+      try{
+        // If you already have a backend, enable this block and replace the URL:
+        // const res = await fetch('/api/comics?limit=50', { headers:{ Authorization:'Bearer ' + token } });
+        // if(!res.ok) throw new Error('API ' + res.status);
+        // const rows = await res.json(); // [{ jobId, images:[...], createdAt, prompts?... }]
+        // return rows;
+
+        // Fallback to local jobs: list items with key "job:*"
+        return (typeof listLocalJobs === 'function') ? listLocalJobs() : [];
+      }catch(e){
+        console.warn('fetchComics fallback to local', e);
+        return (typeof listLocalJobs === 'function') ? listLocalJobs() : [];
+      }
+    }
+
+    // ---- 2) Render list ----
+    function renderList(rows){
+      const host  = document.getElementById('list');
+      const empty = document.getElementById('empty');
+      host.innerHTML = '';
+
+      if(!rows.length){
+        empty.hidden = false;
+        return;
+      }
+      empty.hidden = true;
+
+      rows.forEach(row=>{
+        const { jobId, images = [], createdAt } = row;
+        const card = document.createElement('div');
+        card.className = 'card comic-card';
+
+        // 2×2 visual without canvas (avoid CORS during preview)
+        const collage = document.createElement('div');
+        collage.className = 'mini-collage';
+        for(let i=0;i<4;i++){
+          const cell = document.createElement('figure'); cell.className = 'cell';
+          const img  = new Image(); img.alt = `#${jobId} - 圖 ${i+1}`;
+          img.loading = 'lazy';
+          img.src = images[i] || ('demo/' + (i+1) + '.jpg');
+          cell.appendChild(img);
+          collage.appendChild(cell);
+        }
+        card.appendChild(collage);
+
+        // Toolbar
+        const bar = document.createElement('div');
+        bar.className = 'toolbar';
+        bar.innerHTML = `
+          <button class="btn btn-primary" data-dl="${jobId}">下載2×2</button>
+          <button class="btn btn-ghost"   data-open="${jobId}">開啟</button>
+          <button class="btn btn-ghost"   data-reuse="${jobId}">再生成</button>
+          <button class="btn btn-ghost"   data-del="${jobId}">刪除</button>
+          <span class="badge">${createdAt ? new Date(createdAt).toLocaleString() : jobId}</span>
+        `;
+        card.appendChild(bar);
+
+        // Events
+        const onDownload = async () => {
+          try{
+            // compose2x2 容錯：CORS 失敗則以占位格繪製
+            const dataUrl = await compose2x2(images, { size: 1024, allowPlaceholders: true });
+            downloadDataUrl(dataUrl, `comic_${jobId}_2x2.png`);
+          }catch(err){
+            alert('合成失敗（可能為跨網域圖片）。請改在結果頁下載，或使用同源圖片。');
+          }
+        };
+        bar.querySelector('[data-dl]')   ?.addEventListener('click', onDownload);
+        bar.querySelector('[data-open]') ?.addEventListener('click', ()=>location.href=`result.html?job=${encodeURIComponent(jobId)}`);
+        bar.querySelector('[data-reuse]')?.addEventListener('click', ()=>location.href=`form.html?from=${encodeURIComponent(jobId)}`);
+        bar.querySelector('[data-del]')  ?.addEventListener('click', ()=>{
+          if(confirm('確定要刪除此紀錄？')){
+            if (typeof deleteLocalJob === 'function') deleteLocalJob(jobId);
+            card.remove();
+            if(!document.querySelector('.comic-card')) document.getElementById('empty').hidden = false;
+          }
+        });
+
+        host.appendChild(card);
+      });
+    }
+
+    // ---- 3) Init ----
+    (async function init(){
+      const rows = await fetchComics();
+      renderList(rows);
+    })();
+  </script>
+</body>
+</html>

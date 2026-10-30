@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI漫畫行銷 — 會員</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body class="form-glass">
+  <div class="wrap">
+    
+    <!-- 共用導覽列：登入時顯示「我的漫畫」 -->
+    <nav class="nav" style="margin-bottom:12px;">
+      <a href="auth.html">會員｜登入 / 註冊</a>
+      <a href="form.html">訪客｜直接填寫</a>
+      <a id="linkMy" href="my.html" hidden>我的漫畫</a>
+    </nav>
+
+    <header class="hero">
+      <h1 class="hero-title">會員登入 / 註冊</h1>
+      <p class="hero-kicker">目前為前端示範；串接後端 API 後，以伺服器驗證與雲端儲存為準。</p>
+    </header>
+
+    <section class="panel">
+      <!-- 分頁切換（註冊 / 登入） -->
+      <div class="actions" role="tablist" aria-label="auth switch">
+        <button id="tab-signup" class="btn btn-primary" type="button"
+                role="tab" aria-selected="true" aria-controls="panel-signup">註冊會員</button>
+        <button id="tab-login" class="btn btn-ghost" type="button"
+                role="tab" aria-selected="false" aria-controls="panel-login">會員登入</button>
+      </div>
+
+      <!-- 註冊面板 -->
+      <div id="panel-signup" role="tabpanel" aria-labelledby="tab-signup" style="margin-top:16px;">
+        <form id="signup" novalidate autocomplete="on">
+          <label for="name">姓名</label>
+          <input id="name" type="text" required />
+          <label for="email">電子郵件</label>
+          <input id="email" type="email" required />
+          <label for="pw">密碼</label>
+          <input id="pw" type="password" required />
+          <div class="actions center-block">
+            <button class="btn btn-primary" type="submit">註冊</button>
+            <button class="btn btn-ghost" type="button" id="guestFromSignup">以訪客身份使用</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 登入面板 -->
+      <div id="panel-login" role="tabpanel" aria-labelledby="tab-login" hidden style="margin-top:16px;">
+        <form id="login" novalidate autocomplete="on">
+          <label for="lemail">電子郵件</label>
+          <input id="lemail" type="email" required />
+          <label for="lpw">密碼</label>
+          <input id="lpw" type="password" required />
+          <div class="actions center-block">
+            <button class="btn btn-primary" type="submit">登入</button>
+            <button class="btn btn-ghost" type="button" id="guestFromLogin">以訪客身份使用</button>
+            <button class="btn btn-ghost" type="button" id="fillDemo">填入示範帳號</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div class="actions center-block" style="margin-top:14px;">
+      <a href="index.html"><button class="btn btn-ghost" type="button">回首頁</button></a>
+    </div>
+  </div>
+
+  <!-- 先載入共用工具（getSession / setupNavVisibility 等） -->
+  <script src="common.js"></script>
+
+  <!-- 本頁邏輯（僅繁體中文註解） -->
+  <script>
+    // ---- 分頁切換：註冊 / 登入 ----
+    const $tabSignup   = document.getElementById('tab-signup');
+    const $tabLogin    = document.getElementById('tab-login');
+    const $panelSignup = document.getElementById('panel-signup');
+    const $panelLogin  = document.getElementById('panel-login');
+
+    function setTab(which){
+      const isSignup = which === 'signup';
+      // 標籤樣式與 ARIA 狀態
+      $tabSignup.classList.toggle('btn-primary', isSignup);
+      $tabSignup.classList.toggle('btn-ghost',  !isSignup);
+      $tabSignup.setAttribute('aria-selected', String(isSignup));
+
+      $tabLogin.classList.toggle('btn-primary', !isSignup);
+      $tabLogin.classList.toggle('btn-ghost',   isSignup);
+      $tabLogin.setAttribute('aria-selected', String(!isSignup));
+
+      // 顯示/隱藏面板
+      $panelSignup.hidden = !isSignup;
+      $panelLogin.hidden  =  isSignup;
+    }
+    $tabSignup.addEventListener('click', ()=>setTab('signup'));
+    $tabLogin .addEventListener('click', ()=>setTab('login'));
+    (function initTabFromQuery(){
+      const t = (new URLSearchParams(location.search).get('tab') || '').toLowerCase();
+      setTab(t === 'login' ? 'login' : 'signup');
+    })();
+
+    // ---- 本地使用者（前端 Demo，用 localStorage 模擬）----
+    function getUsers(){
+      try{ return JSON.parse(localStorage.getItem('users') || '[]'); }
+      catch(e){ return []; }
+    }
+    function setUsers(arr){
+      localStorage.setItem('users', JSON.stringify(arr));
+    }
+    // 確保有示範帳號（demo@example.com / demo1234）
+    function ensureDemoUser(){
+      const users = getUsers();
+      if(!users.some(u => u.email === 'demo@example.com')){
+        users.push({ name:'示範用戶', email:'demo@example.com', pw:'demo1234' });
+        setUsers(users);
+      }
+    }
+
+    // ---- 註冊流程（Demo：成功後直接登入並導向我的漫畫）----
+    document.getElementById('signup').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const name  = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const pw    = document.getElementById('pw').value;
+      if(!name || !email || !pw){ alert('請完整填寫註冊資料'); return; }
+
+      const users = getUsers();
+      if(users.some(u=>u.email===email)){ alert('此電子郵件已註冊'); return; }
+
+      users.push({ name, email, pw });
+      setUsers(users);
+
+      // Demo 體驗：註冊後自動登入並前往「我的漫畫」
+      setSession(email);
+      alert('註冊完成，已為您登入');
+      location.href = 'my.html';
+    });
+
+    // ---- 登入流程（成功後導向我的漫畫）----
+    document.getElementById('login').addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const email = document.getElementById('lemail').value.trim();
+      const pw    = document.getElementById('lpw').value;
+      const user  = getUsers().find(u=>u.email===email && u.pw===pw);
+      if(!user){ alert('帳號或密碼錯誤'); return; }
+      setSession(email);
+      alert('登入成功');
+      location.href = 'my.html';
+    });
+
+    // ---- 快速進入訪客模式 ----
+    document.getElementById('guestFromSignup').addEventListener('click', ()=>location.href='form.html');
+    document.getElementById('guestFromLogin') .addEventListener('click', ()=>location.href='form.html');
+
+    // ---- 自動填入示範帳密（並建立示範用戶）----
+    document.getElementById('fillDemo').addEventListener('click', ()=>{
+      ensureDemoUser();
+      setTab('login');
+      document.getElementById('lemail').value = 'demo@example.com';
+      document.getElementById('lpw').value    = 'demo1234';
+    });
+
+    // ---- 導覽列可視控制：登入時顯示「我的漫畫」 ----
+    if (typeof setupNavVisibility === 'function') {
+      setupNavVisibility();
+    }
+  </script>
+</body>
+</html>

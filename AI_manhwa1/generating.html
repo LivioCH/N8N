@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 漫畫行銷 — 產生中</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .progress-bar {
+      height: 8px;
+      background: #3b82f6;
+      transition: width 0.4s ease;
+      border-radius: 4px;
+    }
+    .progress {
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="form-glass generating">
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="hero-title">正在產生漫畫中</h1>
+      <p class="hero-kicker">此步驟約需 10–30 秒，請勿關閉此頁面。</p>
+    </header>
+
+    <section class="panel center">
+      <div class="spinner" aria-hidden="true"></div>
+
+      <!-- 簡易進度條 -->
+      <div class="progress" aria-label="progress" style="width:min(520px,86vw);margin:16px auto;">
+        <div class="progress-bar" id="bar" style="width:0%"></div>
+      </div>
+
+      <p id="tip" class="subtitle" style="margin-top:8px;">初始化中…</p>
+
+      <div class="actions" style="margin-top:16px;">
+        <a class="btn btn-ghost" href="form.html" role="button">返回問卷</a>
+      </div>
+    </section>
+  </div>
+
+  <!-- 工具載入 -->
+  <script src="common.js"></script>
+  <script>
+    const N8N_WEBHOOK_URL = "https://kento1234.app.n8n.cloud/webhook/comic-webhook";
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const bar = document.getElementById('bar');
+      const tip = document.getElementById('tip');
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const jobId = urlParams.get('job');
+
+      const steps = [
+        '正在喚醒 AI 引擎...',
+        '傳送參數至 n8n...',
+        '生成第 1 張影像...',
+        '生成第 2 張影像...',
+        '生成第 3 張影像...',
+        '生成第 4 張影像...',
+        '合成漫畫與對白...'
+      ];
+      let i = 0;
+
+      // --- FUNGSI TRIGGER n8n ---
+      async function triggerN8n() {
+        if (!jobId) {
+          console.error("Job ID not found in URL");
+          return;
+        }
+        try {
+          await fetch(`${N8N_WEBHOOK_URL}?jobId=${jobId}`, {
+            method: 'GET',
+            mode: 'no-cors' // Melewati proteksi CORS browser
+          });
+          console.log("n8n workflow triggered for Job ID:", jobId);
+        } catch (err) {
+          console.error("Failed to trigger n8n:", err);
+        }
+      }
+
+      triggerN8n();
+
+      function tick() {
+        const pct = Math.min(100, Math.round(((i + 1) / (steps.length + 1)) * 100));
+        bar.style.width = pct + '%';
+        tip.textContent = steps[i] || '正在導向結果頁面...';
+        i++;
+
+        if (i <= steps.length) {
+          setTimeout(tick, 1500);
+        } else {
+          location.href = 'result.html?job=' + encodeURIComponent(jobId);
+        }
+      }
+
+      setTimeout(tick, 800);
+    });
+  </script>
+</body>
+</html>
